@@ -120,7 +120,7 @@ jobs:
             ./release-assets/**/stuntman-client*.ipk
           draft: false
           prerelease: false
-          overwrite_file: true
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
