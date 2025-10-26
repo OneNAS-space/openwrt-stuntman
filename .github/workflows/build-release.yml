@@ -57,7 +57,7 @@ jobs:
         env:
           ARCH: ${{ env.ARCH }}
           FEEDNAME: jackie264
-          PACKAGES: ${{ env.PKG_NAME }}
+          PACKAGES: stuntman-client
           INDEX: 0
           FEED_DIR: ${{ github.workspace }}/feed
           NO_SHFMT_CHECK: 1
@@ -81,7 +81,7 @@ jobs:
         with:
           name: ${{ env.PKG_NAME }}-${{ matrix.target }}-${{ matrix.version }}
           path: |
-            bin/packages/*/jackie264/${{ env.PKG_NAME }}*.ipk
+            bin/packages/*/jackie264/stuntman-client*.ipk
           if-no-files-found: ignore
 
   release:
@@ -113,7 +113,7 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           name: Build-v${{ steps.version.outputs.version }}
           files: |
-            ./release-assets/**/*.ipk
+            ./release-assets/**/stuntman-client*.ipk
           draft: false
           prerelease: false
         env:
@@ -130,7 +130,7 @@ jobs:
         run: |
           mkdir -p custom-packages/pkg
           
-          find ./release-assets -type f -name "*.ipk" | while read -r f; do
+          find ./release-assets -type f -name "stuntman-client*.ipk" | while read -r f; do
             base=$(basename "$f")
             pkgname=$(echo "$base" | sed -E 's/^([^_]+)_.*$/\1/')
             echo "Cleaning old versions of $pkgname"
