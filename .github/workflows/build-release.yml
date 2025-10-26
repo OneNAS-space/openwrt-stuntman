@@ -150,6 +150,6 @@ jobs:
           cd custom-packages
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add pkg/
+          git add .
           git commit -m "Update to - v${{ steps.version.outputs.full_version }}" || echo "No changes"
           git push
