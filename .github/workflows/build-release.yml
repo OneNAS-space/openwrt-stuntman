@@ -130,19 +130,18 @@ jobs:
           token: ${{ secrets.CUSTOM_PACKAGES_TOKEN }}
           path: custom-packages
 
+      - name: 📂 Copy artifacts into repo
+        run: |
+          for platform in release-assets/*; do
+            platename=$(basename "$platform")
+            mkdir -p custom-packages/$platename
+            rm -f custom-packages/$platename/stuntman-client_*.ipk
+            cp "$platform"/stuntman-client*.ipk custom-packages/$platename/
+          done
+          ls -laR custom-packages
+
       - name: Update pkg artifacts
         run: |
-          mkdir -p custom-packages/pkg
-          
-          find ./release-assets -type f -name "stuntman-client*.ipk" | while read -r f; do
-            base=$(basename "$f")
-            pkgname=$(echo "$base" | sed -E 's/^([^_]+)_.*$/\1/')
-            echo "Cleaning old versions of $pkgname"
-            rm -f custom-packages/pkg/${pkgname}_*.ipk
-            cp "$f" custom-packages/pkg/
-          done
-          ls -la custom-packages/pkg/
-          echo "PKG_NAME=${{ github.event.repository.name }}" >> "$GITHUB_ENV"
           cd custom-packages
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
