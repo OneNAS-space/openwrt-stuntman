@@ -99,11 +99,12 @@ jobs:
       - name: 🔍 Extract version and release from Makefile
         id: version
         run: |
-          PKG_VERSION=$(grep -E '^PKG_VERSION *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
+          PKG_VERSION=$(grep -E '^PKG_UPSTREAM_VERSION *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
           PKG_RELEASE=$(grep -E '^PKG_RELEASE *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
           COMBINED_VERSION="${PKG_VERSION}-${PKG_RELEASE}"
           echo "📦 Version: $COMBINED_VERSION"
-          echo "version=$COMBINED_VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "full_version=$COMBINED_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: ⬇️ Download all build artifacts
         uses: actions/download-artifact@v6
@@ -113,7 +114,7 @@ jobs:
       - name: 🗃️ Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.full_version }}
           name: Build-v${{ steps.version.outputs.version }}
           files: |
             ./release-assets/**/stuntman-client*.ipk
@@ -146,5 +147,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pkg/
-          git commit -m "Update to - v${{ steps.version.outputs.version }}" || echo "No changes"
+          git commit -m "Update to - v${{ steps.version.outputs.full_version }}" || echo "No changes"
           git push
