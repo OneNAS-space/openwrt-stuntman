@@ -23,7 +23,7 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      - uses: Jackie264/actions-repo/openwrt-package-mirror-hash-calculator@v1
+      - uses: Jackie264/actions-repo/package-mirror-hash-calculator@v1
         env:
           COMMIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAKEFILE: Makefile
