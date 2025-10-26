@@ -46,6 +46,9 @@ jobs:
             --exclude='.git' \
             --exclude='feed' \
             --exclude='.github' \
+            --exclude='LICENSE' \
+            --exclude='README.md' \
+            --exclude='SECURITY.md' \
             ./ feed/jackie264/${PKG_NAME}/
           
       - name: 🧮 Compute ARCH
@@ -57,7 +60,7 @@ jobs:
         env:
           ARCH: ${{ env.ARCH }}
           FEEDNAME: jackie264
-          PACKAGES: stuntman-client
+          PACKAGES: ${{ env.PKG_NAME }}
           INDEX: 0
           FEED_DIR: ${{ github.workspace }}/feed
           NO_SHFMT_CHECK: 1
