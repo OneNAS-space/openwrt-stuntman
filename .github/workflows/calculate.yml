@@ -8,6 +8,7 @@ on:
         type: string
   push:
     branches:
+      - master
 
 jobs:
   check:
