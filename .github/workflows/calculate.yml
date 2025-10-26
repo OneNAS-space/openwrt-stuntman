@@ -25,6 +25,6 @@ jobs:
 
       - uses: Jackie264/actions-repo/package-mirror-hash-calculator@latest
         env:
-          COMMIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_TOKEN: ${{ secrets.CUSTOM_PACKAGES_TOKEN }}
           MAKEFILE: Makefile
           TARGET_VERSION: ${{ inputs.target_version }}
