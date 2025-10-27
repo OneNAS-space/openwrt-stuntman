@@ -8,7 +8,6 @@ on:
         type: string
   push:
     branches:
-      - master
 
 jobs:
   check:
@@ -23,8 +22,8 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      - uses: Jackie264/actions-repo/package-mirror-hash-calculator@latest
+      - uses: muink/openwrt-package-mirror-hash-calculator@main
         env:
-          COMMIT_TOKEN: ${{ secrets.CUSTOM_PACKAGES_TOKEN }}
+          COMMIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAKEFILE: Makefile
           TARGET_VERSION: ${{ inputs.target_version }}
