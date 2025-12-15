@@ -107,7 +107,7 @@ jobs:
           echo "full_version=$COMBINED_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: ⬇️ Download all build artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: ./release-assets
 
