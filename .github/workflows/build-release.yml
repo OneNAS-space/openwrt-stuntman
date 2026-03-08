@@ -181,7 +181,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.check.outputs.resolved_tag }}
-          name: Build-${{ needs.check.outputs.pkg_version }}
+          name: Build-${{ needs.check.outputs.resolved_tag }}
           files: |
             ./release-assets/**/${{ needs.build.outputs.pkg_name }}*.ipk
             ./release-assets/**/${{ needs.build.outputs.pkg_name }}*.apk
