@@ -10,10 +10,75 @@ on:
       - 'Makefile'
       - '!**/.github/**'
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Calculating PKG_MIRROR_HASH"]
+    types:
+      - completed
 
 jobs:
+  check:
+    name: 1. Resolve & Fingerprint
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.name == 'Calculating PKG_MIRROR_HASH')
+    outputs:
+      should_build: ${{ steps.decide.outputs.should_build }}
+      resolved_tag: ${{ steps.version.outputs.full_version }}
+      pkg_version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: 🧾 Checkout repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: 📦 Extract Version from Makefile
+        id: version
+        run: |
+          V=$(grep -E '^PKG_VERSION *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
+          if [ -z "$V" ]; then
+            SD=$(grep -E '^PKG_SOURCE_DATE *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
+            SV=$(grep -E '^PKG_SOURCE_VERSION *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]' | cut -c1-8)
+            V="${SD//-/.}.${SV}"
+          fi
+          R=$(grep -E '^PKG_RELEASE *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "full_version=$V-r$R" >> "$GITHUB_OUTPUT"
+          echo "V_TEMP=$V" >> $GITHUB_ENV
+
+      - name: 🔎 Decide whether build is needed
+        id: decide
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+        run: |
+          SHOULD_BUILD="true"
+          
+          FULL_V="${{ steps.version.outputs.full_version }}"
+          echo "Checking status for full tag: v$FULL_V"
+          
+          MSG="$HEAD_COMMIT_MESSAGE"
+          [ -z "$MSG" ] && MSG=$(git log -1 --pretty=%B)
+          FP=$(echo "$MSG" | sed -n 's/.*FP=\([0-9a-f]\{64\}\).*/\1/p')
+          
+          if [ -n "$FP" ] && [ -f .last-fingerprint ]; then
+            if [ "$FP" = "$(cat .last-fingerprint)" ]; then
+              echo "✅ Fingerprint matches. Skipping."
+              SHOULD_BUILD="false"
+            fi
+          fi
+          
+          if git ls-remote --exit-code --tags origin "refs/tags/v$FULL_V" >/dev/null 2>&1; then
+             echo "⚠️ Tag v$FULL_V already exists. Skipping build."
+             SHOULD_BUILD="false"
+          fi
+          
+          echo "should_build=$SHOULD_BUILD" >> "$GITHUB_OUTPUT"
+          echo "Final Decision: SHOULD_BUILD=$SHOULD_BUILD"
+
   build:
-    name: Build for ${{ matrix.version }} / ${{ matrix.target }}
+    name: 2. Build (${{ matrix.target }} / ${{ matrix.version }})
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
     runs-on: ubuntu-latest
 
     strategy:
@@ -26,15 +91,26 @@ jobs:
             target: aarch64_cortex-a53
           - version: openwrt-24.10
             target: arm_cortex-a7_neon-vfpv4
+          - version: openwrt-25.12
+            target: x86_64
+          - version: openwrt-25.12
+            target: aarch64_cortex-a53
+          - version: openwrt-25.12
+            target: arm_cortex-a7_neon-vfpv4
+    outputs:
+      pkg_name: ${{ steps.enviroment.outputs.pkg_name }}
 
     steps:
       - name: 🧾 Checkout repo
         uses: actions/checkout@v6
 
-      - name: 📛 Extract PKG_NAME from Makefile
+      - name: 📛 Set Environment
+        id: enviroment
         run: |
           PKG_NAME=$(grep -E '^PKG_NAME[:?]?=' Makefile | head -n1 | sed -E 's/PKG_NAME[:?]?= *//')
           echo "PKG_NAME=$PKG_NAME" >> "$GITHUB_ENV"
+          echo "ARCH=${{ matrix.target }}-${{ matrix.version }}" >> "$GITHUB_ENV"
+          echo "pkg_name=$PKG_NAME-client" >> "$GITHUB_OUTPUT"
 
       - name: 🧰 Set up openwrt-stuntman feed structure
         run: |
@@ -50,10 +126,6 @@ jobs:
             --exclude='README.md' \
             --exclude='SECURITY.md' \
             ./ feed/jackie264/${PKG_NAME}/
-          
-      - name: 🧮 Compute ARCH
-        run: |
-          echo "ARCH=${{ matrix.target }}-${{ matrix.version }}" >> "$GITHUB_ENV"
 
       - name: 🏗️ Build with OpenWrt SDK
         uses: openwrt/gh-action-sdk@v10
@@ -79,32 +151,29 @@ jobs:
             ls -laR bin/packages/ 2>/dev/null || echo "No packages directory"
           fi
 
+      - name: 📦 Prepare and Rename APK artifacts
+        run: |
+          find bin/packages/ -name "*.apk" | while read -r f; do
+            mv "$f" "${f%.apk}-${{ matrix.target }}.apk"
+          done
+
       - name: 📦 Upload artifact for ${{ matrix.target }}
         uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}-${{ matrix.target }}-${{ matrix.version }}
           path: |
-            bin/packages/*/jackie264/stuntman-client*.ipk
+            bin/packages/*/jackie264/${{ steps.enviroment.outputs.pkg_name }}*.ipk
+            bin/packages/*/jackie264/${{ steps.enviroment.outputs.pkg_name }}*.apk
           if-no-files-found: ignore
 
   release:
-    name: Release ${{ github.repository }}
-    needs: build
+    name: 3. Release & Deploy ${{ github.repository }}
+    needs: [check, build]
     runs-on: ubuntu-latest
 
     steps:
       - name: 🧾 Checkout repo
         uses: actions/checkout@v6
-
-      - name: 🔍 Extract version and release from Makefile
-        id: version
-        run: |
-          PKG_VERSION=$(grep -E '^PKG_UPSTREAM_VERSION *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
-          PKG_RELEASE=$(grep -E '^PKG_RELEASE *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
-          COMBINED_VERSION="${PKG_VERSION}-${PKG_RELEASE}"
-          echo "📦 Version: $COMBINED_VERSION"
-          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
-          echo "full_version=$COMBINED_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: ⬇️ Download all build artifacts
         uses: actions/download-artifact@v8
@@ -114,42 +183,77 @@ jobs:
       - name: 🗃️ Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.full_version }}
-          name: Build-v${{ steps.version.outputs.version }}
+          tag_name: v${{ needs.check.outputs.resolved_tag }}
+          name: Build-v${{ needs.check.outputs.pkg_version }}
           files: |
-            ./release-assets/**/stuntman-client*.ipk
+            ./release-assets/**/${{ needs.build.outputs.pkg_name }}*.ipk
+            ./release-assets/**/${{ needs.build.outputs.pkg_name }}*.apk
           draft: false
           prerelease: false
           overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Checkout custom-packages repo
+      - name: 🔑 Checkout custom-packages repo
         uses: actions/checkout@v6
         with:
           repository: OneNAS-space/custom-packages
           token: ${{ secrets.CUSTOM_PACKAGES_TOKEN }}
           path: custom-packages
 
-      - name: 📂 Copy artifacts into repo
+      - name: 🚚 Update stuntman-client artifacts
         run: |
-          find ./release-assets -type f -name "stuntman-client*.ipk" | while read -r f; do
-            base=$(basename "$f")
-            pkgname=$(echo "$base" | sed -E 's/^([^_]+)_.*$/\1/')
-            archdir=$(echo "$f" | sed -E 's#.*/stuntman-([^/]+)-openwrt.*#\1#')
-            echo "Processing $pkgname for arch $archdir"
-            mkdir -p custom-packages/$archdir
-            echo "Cleaning old versions of $pkgname in $archdir"
-            rm -f custom-packages/$archdir/${pkgname}_*.ipk
-            cp "$f" custom-packages/$archdir/
-          done
-          ls -laR custom-packages
+          set -e
+          PKG_NAME="${{ needs.build.outputs.pkg_name }}"
 
-      - name: Update pkg artifacts
-        run: |
+          find ./release-assets -type f \( -name "*.ipk" -o -name "*.apk" \) | while read -r f; do
+            base=$(basename "$f")
+            archdir=$(echo "$f" | sed -E 's#.*/stuntman-([^/]+)-openwrt.*#\1#')
+            if [[ "$base" == *.ipk ]]; then
+              pkgname=$(echo "$base" | sed -E 's/^([^_]+)_.*$/\1/')
+              dest_dir="custom-packages/24.10/$archdir"
+              mkdir -p "$dest_dir"
+              echo "Cleaning old versions of $pkgname in $archdir"
+              rm -f "$dest_dir/${pkgname}"*.ipk
+              cp "$f" "$dest_dir/"
+              echo "✅ [24.10] Deployed $base to $archdir"
+              ls -la "$dest_dir/${pkgname}"* || echo "No IPKs found"
+            elif [[ "$base" == *.apk ]]; then
+              standard_name=$(echo "$base" | sed "s/-$archdir//")
+              pkgname=$(echo "$standard_name" | cut -d- -f1)
+              dest_dir="custom-packages/25.12/$archdir"
+              mkdir -p "$dest_dir"
+              echo "Cleaning old versions of $pkgname in $archdir"
+              rm -f "$dest_dir/${pkgname}"*.apk
+              echo "✅ [25.12] Deployed $base as $standard_name to $archdir"
+              cp "$f" "$dest_dir/$standard_name"
+              ls -la "$dest_dir/${pkgname}"* || echo "No APKs found"
+            fi
+          done
+
           cd custom-packages
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "Update to - v${{ steps.version.outputs.full_version }}" || echo "No changes"
-          git push
+          git commit -m "Update $PKG_NAME to v${{ needs.check.outputs.resolved_tag }}" || echo "No changes to commit"
+          
+          for i in {1..5}; do
+            git pull --rebase origin main && \
+            git push origin main && break || \
+            (echo "Conflict detected, retrying in 5s..." && sleep 5)
+          done
+
+      - name: 📝 Update Fingerprint after success
+        if: success()
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+        run: |
+          FP=$(echo "$HEAD_COMMIT_MESSAGE" | sed -n 's/.*FP=\([0-9a-f]\{64\}\).*/\1/p')
+          if [ -n "$FP" ]; then
+            echo "$FP" > .last-fingerprint
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add .last-fingerprint
+            git commit -m "chore: update fingerprint to $FP [skip ci]"
+            git push origin main
+          fi
