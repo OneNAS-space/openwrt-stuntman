@@ -49,6 +49,11 @@ jobs:
           HEAD_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
         run: |
           SHOULD_BUILD="true"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "👋 Manual run detected. Forcing build."
+            echo "should_build=$SHOULD_BUILD" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           
           FULL_V="${{ steps.version.outputs.full_version }}"
           echo "Checking status for full tag: $FULL_V"
