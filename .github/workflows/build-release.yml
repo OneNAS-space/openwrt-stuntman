@@ -182,19 +182,33 @@ jobs:
         with:
           path: ./release-assets
 
-      - name: 🗃️ Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.check.outputs.resolved_tag }}
-          name: Build-${{ needs.check.outputs.resolved_tag }}
-          files: |
-            ./release-assets/**/${{ needs.build.outputs.pkg_name }}*.ipk
-            ./release-assets/**/${{ needs.build.outputs.pkg_name }}*.apk
-          draft: false
-          prerelease: false
-          overwrite_files: true
+      - name: 🚀 Robust Release (Native GH CLI)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.check.outputs.resolved_tag }}
+          TITLE: "Build -${{ needs.check.outputs.resolved_tag }}"
+        run: |
+          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes ""
+          echo "Uploading assets to $TAG..."
+          find ./release-assets -type f \( -name "stuntman-client*.ipk" -o -name "stuntman-client*.apk" \) | while read -r file; do
+            echo "⬆️ Uploading $(basename "$file")..."
+            gh release upload "$TAG" "$file" --clobber
+          done
+          echo "🎉 All assets uploaded successfully."
+
+#      - name: 🗃️ Create GitHub Release
+#        uses: softprops/action-gh-release@v2
+#        with:
+#          tag_name: ${{ needs.check.outputs.resolved_tag }}
+#          name: Build-${{ needs.check.outputs.resolved_tag }}
+#          files: |
+#            ./release-assets/**/${{ needs.build.outputs.pkg_name }}*.ipk
+#            ./release-assets/**/${{ needs.build.outputs.pkg_name }}*.apk
+#          draft: false
+#          prerelease: false
+#          overwrite_files: true
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🔑 Checkout custom-packages repo
         uses: actions/checkout@v6
