@@ -35,15 +35,12 @@ jobs:
       - name: 📦 Extract Version from Makefile
         id: version
         run: |
-          V=$(grep -E '^PKG_VERSION *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
-          if [ -z "$V" ]; then
-            SD=$(grep -E '^PKG_SOURCE_DATE *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
-            SV=$(grep -E '^PKG_SOURCE_VERSION *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]' | cut -c1-8)
-            V="${SD//-/.}.${SV}"
-          fi
-          R=$(grep -E '^PKG_RELEASE *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "full_version=$V-r$R" >> "$GITHUB_OUTPUT"
+          PKG_VERSION=$(grep -E '^PKG_UPSTREAM_VERSION *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
+          PKG_RELEASE=$(grep -E '^PKG_RELEASE *:?=' Makefile | head -n1 | cut -d= -f2 | tr -d '[:space:]')
+          COMBINED_VERSION="${PKG_VERSION}-r${PKG_RELEASE}"
+          echo "📦 Version: $COMBINED_VERSION"
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "full_version=$COMBINED_VERSION" >> "$GITHUB_OUTPUT"
           echo "V_TEMP=$V" >> $GITHUB_ENV
 
       - name: 🔎 Decide whether build is needed
