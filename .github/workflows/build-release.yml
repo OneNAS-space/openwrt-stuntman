@@ -227,7 +227,7 @@ jobs:
             archdir=$(echo "$f" | sed -E 's#.*/stuntman-([^/]+)-openwrt.*#\1#')
             if [[ "$base" == *.ipk ]]; then
               pkgname=$(echo "$base" | sed -E 's/^([^_]+)_.*$/\1/')
-              dest_dir="custom-packages/24.10/$archdir"
+              dest_dir="custom-packages/releases/packages-24.10/$archdir"
               mkdir -p "$dest_dir"
               echo "Cleaning old versions of $pkgname in $archdir"
               rm -f "$dest_dir/${pkgname}"*.ipk
@@ -237,7 +237,7 @@ jobs:
             elif [[ "$base" == *.apk ]]; then
               standard_name=$(echo "$base" | sed "s/-$archdir//")
               pkgname=$(echo "$standard_name" | cut -d- -f1)
-              dest_dir="custom-packages/25.12/$archdir"
+              dest_dir="custom-packages/releases/packages-25.12/$archdir"
               mkdir -p "$dest_dir"
               echo "Cleaning old versions of $pkgname in $archdir"
               rm -f "$dest_dir/${pkgname}"*.apk
